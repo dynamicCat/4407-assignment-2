@@ -1,0 +1,8 @@
+# Ignore all .txt files
+*.txt
+# Ignore all .tsv files
+*.tsv
+# Ignore all .xlsx files
+*.xlsx
+# Make sure only .sh script files are tracked by Git (if there are other temporary files, you can also add ignore rules as needed)
+!*.sh
