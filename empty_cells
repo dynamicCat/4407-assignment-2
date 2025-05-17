@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+# empty_cells — counts the number of empty cells in each column
+# Use awk to process, supports custom delimiters, handles missing fields and extra fields
+
+if [[ $# -ne 2 ]]; then
+  echo "Usage: $0 <file> <separator>" >&2
+  exit 1
+fi
+
+file="$1"
+sep="$2"
+
+# Check if the file is readable
+if [[ ! -r "$file" ]]; then
+  echo "Error: Cannot read file '$file'" >&2
+  exit 1
+fi
+
+awk -v FS="$sep" '
+  BEGIN {
+    OFS = ""
+  }
+  NR == 1 {
+    # Read the header line, remove possible CR (\r)
+    sub(/\r$/, "")
+    for (i = 1; i <= NF; i++) {
+      col[i] = $i
+      count[i] = 0
+    }
+    n = NF
+    next
+  }
+  {
+    # Remove possible CR (\r)
+    sub(/\r$/, "")
+    if (NF > n) {
+      printf("Warning: Line %d has more fields (%d) than header (%d)\n", NR, NF, n) > "/dev/stderr"
+    }
+    for (i = 1; i <= n; i++) {
+      if (i > NF || $i == "") {
+        count[i]++
+      }
+    }
+  }
+  END {
+    for (i = 1; i <= n; i++) {
+      printf("%s: %d\n", col[i], count[i])
+    }
+  }
+' "$file"
