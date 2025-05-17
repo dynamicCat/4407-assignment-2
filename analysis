@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# analysis.sh — Answer four research questions based on cleaned TSV data
+# analysis.sh — Answer four research questions based on the cleaned TSV data
 
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 <cleaned_tsv_file>" >&2
@@ -14,12 +14,53 @@ if [[ ! -r "$file" ]]; then
   exit 1
 fi
 
-awk -F"\t" '
-NR == 1 { next }
+awk -F"\t" 'NR == 1 { next }
 {
+  # Count the number of occurrences of mechanics and domain
+  split($13, m_arr, ", ")
+  for (i in m_arr) if (m_arr[i] != "") mech_count[m_arr[i]]++
+  split($14, d_arr, ", ")
+  for (i in d_arr) if (d_arr[i] != "") dom_count[d_arr[i]]++
 
+  # Calculate the accumulation required for Pearson correlation
+  year = $3 + 0; rating = $9 + 0; comp = $11 + 0
+  sum_xy_year   += year * rating
+  sum_x_year    += year
+  sum_y_rating  += rating
+  sum_x2_year   += year * year
+  sum_y2_rating += rating * rating
+  n_year++;
+
+  sum_xy_comp   += comp * rating
+  sum_x_comp    += comp
+  sum_y_rating2 += rating
+  sum_x2_comp   += comp * comp
+  sum_y2_rating2+= rating * rating
+  n_comp++;
 }
 END {
-print "No analysis results yet."
+  # Output the most popular mechanics
+  top_m = ""; maxm = 0
+  for (k in mech_count) if (mech_count[k] > maxm) { maxm = mech_count[k]; top_m = k }
+  printf "The most popular game mechanics is %s found in %d games\n", top_m, maxm
+
+  # Output the most popular domain
+  top_d = ""; maxd = 0
+  for (k in dom_count) if (dom_count[k] > maxd) { maxd = dom_count[k]; top_d = k }
+  printf "The most game domain is %s found in %d games\n\n", top_d, maxd
+
+  # Pearson: year vs rating
+  cov_year = sum_xy_year - sum_x_year * sum_y_rating / n_year
+  std_x = sqrt(sum_x2_year - sum_x_year^2 / n_year)
+  std_y = sqrt(sum_y2_rating - sum_y_rating^2 / n_year)
+  corr_year = cov_year / (std_x * std_y)
+  printf "The correlation between the year of publication and the average rating is %.3f\n", corr_year
+
+  # Pearson: complexity vs rating
+  cov_comp = sum_xy_comp - sum_x_comp * sum_y_rating2 / n_comp
+  std_x2 = sqrt(sum_x2_comp - sum_x_comp^2 / n_comp)
+  std_y2 = sqrt(sum_y2_rating2 - sum_y_rating2^2 / n_comp)
+  corr_comp = cov_comp / (std_x2 * std_y2)
+  printf "The correlation between the complexity of a game and its average rating is %.3f\n", corr_comp
 }
 ' "$file"
