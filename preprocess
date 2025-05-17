@@ -1,22 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# preprocess.sh — Clean the dataset
+# preprocess.sh — Clean BGG dataset
+# 1) CRLF → LF
+# 2) Semicolon → Tab
+# 3) Decimal comma → dot
+# 4) Remove non-ASCII
+# 5) Generate new unique ID for empty ID
 
-if [[ $# -ne 1 ]]; then 
-  echo "Usage: $0 <file>" >&2 
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <file>" >&2
   exit 1
 fi
 file="$1"
-if [[ ! -r "$file" ]]; then 
-  echo "Error: Cannot read '$file'" >&2 
+if [[ ! -r "$file" ]]; then
+  echo "Error: Cannot read '$file'" >&2
   exit 1
 fi
 
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
-# CRLF → LF
-sed -E -e 's/\r$//' "$file" > "$tmp"
+# —— sed + tr pipeline ——
+# -E: use extended regular expression
+# -e: each expression
+sed -E \
+    -e 's/\r$//' \
+    -e 's/;/\t/g' \
+    -e 's/([0-9]),([0-9])/\1.\2/g' \
+  "$file" \
+| tr -cd $'\11\12\15\40-\176' > "$tmp"
 
-cat "$tmp"
+# —— ID completion ——
+# Print title
+head -n1 "$tmp"
+
+# Calculate the next available ID
+next_id=$(awk -F'\t' '
+  NR>1 && $1 ~ /^[0-9]+$/ {
+    if ($1 > m) m = $1
+  }
+  END { print (m + 1) }
+' "$tmp")
+
+# For the remaining rows, assign values ​​to empty IDs
+tail -n +2 "$tmp" \
+| awk -F'\t' -v OFS='\t' -v newid="$next_id" '
+{
+  if ($1 == "") $1 = newid++
+  print
+}'
