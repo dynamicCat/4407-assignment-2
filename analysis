@@ -58,7 +58,7 @@ awk -F'\t' '
     if (year_idx > 0 && rating_idx > 0) { 
       year = $year_idx 
       rating = $rating_idx 
-      if (year ~ /^-?[0-9]+$/ && rating ~ /^[0-9.]+$/) { 
+      if (year ~ /^-?[1-9][0-9]*$/ && rating ~ /^[0-9.]+$/) { 
         n_year++ 
         sum_x += year 
         sum_y += rating 

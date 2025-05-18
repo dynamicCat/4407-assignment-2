@@ -33,19 +33,24 @@ awk -v FS="$sep" '
     n = NF
     next
   }
-  {
-    # Remove possible CR (\r)
-    sub(/\r$/, "")
-    if (NF > n) {
-      printf("Warning: Line %d has more fields (%d) than header (%d)\n", NR, NF, n) > "/dev/stderr"
-    }
-    for (i = 1; i <= n; i++) {
-      if (i > NF || $i == "") {
-        count[i]++
-      }
-    }
+
+  NF == 0 { next } 
+  { 
+    sub(/\r$/, "") 
+    if (NF > n) { 
+      printf("Warning: Line %d has more fields (%d) than header (%d)\n", NR, NF, n) > "/dev/stderr" 
+    } 
+    for (i = 1; i <= n; i++) { 
+      if (i > NF || $i == "") { 
+        count[i]++ 
+      } 
+    } 
   }
   END {
+    # If there are no data rows, output a warning
+    if (NR < 2) {
+      print "Warning: no data rows found" > "/dev/stderr"
+    }
     for (i = 1; i <= n; i++) {
       printf("%s: %d\n", col[i], count[i])
     }
