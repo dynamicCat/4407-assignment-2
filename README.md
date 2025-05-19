@@ -97,7 +97,7 @@ Cleans the dataset by performing multiple transformations.
 #### Usage
 
 ```bash
-./preprocess <file>
+./preprocess <file> > <output_file>
 ```
 
 #### Parameters
@@ -110,7 +110,7 @@ Outputs a cleaned version of the input file with the following transformations:
 
 - Semicolon separators converted to tab characters
 - Windows line endings (CRLF) converted to Unix line endings (LF)
-- Decimal commas (e.g., "1,23") converted to decimal points (e.g., "1.23")
+- Decimal commas onverted to decimal points
 - Non-ASCII characters removed
 - New unique IDs generated for empty or non-numeric IDs
 
@@ -119,6 +119,13 @@ Outputs a cleaned version of the input file with the following transformations:
 - Creates temporary files that are properly cleaned up on exit
 - Uses safe Bash practices (set -euo pipefail)
 - Maintains data integrity while cleaning
+
+#### Example
+
+```bash
+$ ./preprocess sample.txt > sample.tsv
+```
+
 
 ### 3. `analysis`
 

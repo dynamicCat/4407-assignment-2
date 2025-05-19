@@ -1,93 +1,58 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 #===============================================================================
 # preprocess — Clean Board Games Geek dataset
-# - Convert CRLF to LF
-# - Replace semicolon separators with tabs
-# - Convert decimal commas to points
-# - Remove non-ASCII characters
-# - Generate new unique IDs for empty or non-numeric IDs
+#
+# This script performs the following transformations on a semicolon-separated
+# CSV file containing board game data:
+#   1. Convert CRLF (Windows) line endings to LF (Unix)
+#   2. Replace semicolon delimiters with tab characters
+#   3. Convert decimal commas (e.g., 12,34) to decimal points (e.g., 12.34)
+#   4. Remove all non-ASCII characters, preserving tabs and newlines
+#   5. Generate new sequential numeric IDs for any rows with missing or
+#      non-numeric IDs in the first column
 #===============================================================================
 
-# Function to display error messages
-error_msg() {
-  echo "Error: $1" >&2
-  exit 1
-}
-
-# Function to display usage
-usage() {
-  echo "Usage: $0 <file>" >&2
-  echo "Cleans a Board Game Geek CSV file and outputs the result to stdout" >&2
-  echo "Example: $0 input.csv > cleaned.tsv" >&2
-  exit 1
-}
-
-# Check arguments
+# Check that exactly one argument (input file) is provided
 if [[ $# -ne 1 ]]; then
-  usage
+  echo "Usage: $0 <file>" >&2
+  exit 1
 fi
-
 file="$1"
 
-# Check if file exists and is readable
+# Verify the input file exists and is readable
 if [[ ! -r "$file" ]]; then
-  error_msg "Cannot read '$file'. File does not exist or permission denied."
+  echo "Error: Cannot read '$file'" >&2
+  exit 1
 fi
 
-# Check if file is empty
-if [[ ! -s "$file" ]]; then
-  error_msg "File '$file' is empty."
-fi
-
-# Check if file appears to be in expected format (has semicolons in first line)
-if ! head -n 1 "$file" | grep -q ";"; then
-  echo "Warning: File '$file' may not be in expected CSV format (no semicolons found in header)." >&2
-  echo "Processing will continue, but results may be unexpected." >&2
-fi
-
-# Create temporary file
+# Create a temporary file for intermediate data and ensure it's cleaned up
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
-echo "Processing '$file'..." >&2
 
-# Step 1: Clean input data
-# - Remove CR (\r) for Unix line endings
-# - Replace semicolon (;) with tab (\t)
-# - Convert decimal comma (e.g., 12,34 to 12.34) while avoiding thousand separators
-# - Remove non-ASCII characters, keep tab, newline, and ASCII 32-126
+
+# Step 1: Initial cleaning
+# - Remove carriage returns (\r) to normalize line endings to LF
+# - Convert semicolons (;) to tabs (\t) as field separators
+# - Change decimal commas to decimal points for numeric fields
+# - Strip any non-ASCII bytes, keeping tabs (0x09), newlines (0x0A,0x0D),
+#   and printable ASCII (0x20-0x7E)
 sed -E \
     -e 's/\r$//' \
     -e 's/;/\t/g' \
-    -e 's/([0-9]+),([0-9]{2})\b/\1.\2/g' \
+    -e 's/([0-9]+),([0-9]+)/\1.\2/g' \
   "$file" \
 | tr -cd $'\11\12\15\40-\176' > "$tmp"
-
-# Check if cleaning was successful
-if [[ ! -s "$tmp" ]]; then
-  error_msg "Processing failed. The output file is empty."
-fi
 
 # Step 2: Generate new IDs for empty or non-numeric IDs
 # - Find maximum numeric ID
 # - Assign new IDs starting from max_id + 1
-echo "Finding maximum ID in dataset..." >&2
 max_id=$(awk -F'\t' 'NR>1 && $1 ~ /^[0-9]+$/ {if ($1>m) m=$1} END{print m+0}' "$tmp")
 next_id=$((max_id + 1))
 
-echo "Fixing empty or non-numeric IDs (starting from ID $next_id)..." >&2
-
-# Count empty IDs to report
-empty_ids=$(awk -F'\t' 'NR>1 && ($1 == "" || $1 !~ /^[0-9]+$/) {count++} END{print count+0}' "$tmp")
-
-# Process and output the cleaned data
-awk -F'\t' -v OFS='\t' -v new_id="$next_id" -v empty_count="$empty_ids" '
-  BEGIN {
-    if (empty_count > 0) {
-      print "Replacing " empty_count " empty or non-numeric IDs..." > "/dev/stderr"
-    }
-  }
+awk -F'\t' -v OFS='\t' -v new_id="$next_id" '
   NR == 1 {
     print
     next
@@ -97,5 +62,3 @@ awk -F'\t' -v OFS='\t' -v new_id="$next_id" -v empty_count="$empty_ids" '
   }
   { print }
 ' "$tmp"
-
-echo "Processing complete." >&2

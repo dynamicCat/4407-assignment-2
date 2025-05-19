@@ -6,3 +6,5 @@
 *.xlsx
 # Make sure only .sh script files are tracked by Git (if there are other temporary files, you can also add ignore rules as needed)
 !*.sh
+
+*.DS_Store
