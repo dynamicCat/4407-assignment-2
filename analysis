@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
+#===============================================================================
+# analysis — Compute popular mechanics/domains and Pearson correlations
+# Usage: analysis <cleaned_tsv>
+#   <cleaned_tsv>  Tab-separated cleaned data file
+#===============================================================================
 set -euo pipefail
 
+# Check if the number of parameters is correct
 if [[ $# -ne 1 ]]; then 
   echo "Usage: $0 <tsv_file>" >&2 
   exit 1
 fi
 
+# Input file path
 file="$1"
 
+# Verify that the input file is readable
 if [[ ! -r "$file" ]]; then 
   echo "Error: File $file is not readable." >&2 
   exit 1
 fi
 
+# Use awk to process TSV files and calculate statistics
 awk -F'\t' ' 
   BEGIN { 
     #Initialize column indices 
@@ -35,7 +44,7 @@ awk -F'\t' '
     next 
   } 
   { 
-    #Process Mechanics 
+    # Count each mechanic occurrence
     if (mech_idx > 0) { 
       split($mech_idx, m_arr, ",") 
       for (i in m_arr) { 
@@ -44,7 +53,7 @@ awk -F'\t' '
         if (mech != "") mech_count[mech]++ 
       } 
     } 
-    # Process Domains 
+    # Count each domain occurrence
     if (domain_idx > 0) { 
       split($domain_idx, d_arr, ",") 
       for (i in d_arr) { 

@@ -1,28 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-
-
+#===============================================================================
 # preprocess — Clean Board Games Geek dataset
 # - Convert CRLF to LF
 # - Replace semicolon separators with tabs
 # - Convert decimal commas to points
 # - Remove non-ASCII characters
 # - Generate new unique IDs for empty or non-numeric IDs
+#===============================================================================
 
-if [[ $# -ne 1 ]]; then
+# Function to display error messages
+error_msg() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+# Function to display usage
+usage() {
   echo "Usage: $0 <file>" >&2
+  echo "Cleans a Board Game Geek CSV file and outputs the result to stdout" >&2
+  echo "Example: $0 input.csv > cleaned.tsv" >&2
   exit 1
-fi
-file="$1"
-if [[ ! -r "$file" ]]; then
-  echo "Error: Cannot read '$file'" >&2
-  exit 1
+}
+
+# Check arguments
+if [[ $# -ne 1 ]]; then
+  usage
 fi
 
+file="$1"
+
+# Check if file exists and is readable
+if [[ ! -r "$file" ]]; then
+  error_msg "Cannot read '$file'. File does not exist or permission denied."
+fi
+
+# Check if file is empty
+if [[ ! -s "$file" ]]; then
+  error_msg "File '$file' is empty."
+fi
+
+# Check if file appears to be in expected format (has semicolons in first line)
+if ! head -n 1 "$file" | grep -q ";"; then
+  echo "Warning: File '$file' may not be in expected CSV format (no semicolons found in header)." >&2
+  echo "Processing will continue, but results may be unexpected." >&2
+fi
+
+# Create temporary file
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
+echo "Processing '$file'..." >&2
 
 # Step 1: Clean input data
 # - Remove CR (\r) for Unix line endings
@@ -36,13 +64,30 @@ sed -E \
   "$file" \
 | tr -cd $'\11\12\15\40-\176' > "$tmp"
 
+# Check if cleaning was successful
+if [[ ! -s "$tmp" ]]; then
+  error_msg "Processing failed. The output file is empty."
+fi
+
 # Step 2: Generate new IDs for empty or non-numeric IDs
 # - Find maximum numeric ID
 # - Assign new IDs starting from max_id + 1
+echo "Finding maximum ID in dataset..." >&2
 max_id=$(awk -F'\t' 'NR>1 && $1 ~ /^[0-9]+$/ {if ($1>m) m=$1} END{print m+0}' "$tmp")
 next_id=$((max_id + 1))
 
-awk -F'\t' -v OFS='\t' -v new_id="$next_id" '
+echo "Fixing empty or non-numeric IDs (starting from ID $next_id)..." >&2
+
+# Count empty IDs to report
+empty_ids=$(awk -F'\t' 'NR>1 && ($1 == "" || $1 !~ /^[0-9]+$/) {count++} END{print count+0}' "$tmp")
+
+# Process and output the cleaned data
+awk -F'\t' -v OFS='\t' -v new_id="$next_id" -v empty_count="$empty_ids" '
+  BEGIN {
+    if (empty_count > 0) {
+      print "Replacing " empty_count " empty or non-numeric IDs..." > "/dev/stderr"
+    }
+  }
   NR == 1 {
     print
     next
@@ -52,3 +97,5 @@ awk -F'\t' -v OFS='\t' -v new_id="$next_id" '
   }
   { print }
 ' "$tmp"
+
+echo "Processing complete." >&2
